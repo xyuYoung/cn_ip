@@ -3,7 +3,6 @@ name: Update China IP Rules
 on:
   schedule:
     - cron: "0 18 * * *"
-
   workflow_dispatch:
 
 permissions:
@@ -14,9 +13,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 拉取仓库
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2. 下载中国 IPv4 / IPv6 CIDR
       - name: Download China IP lists
         run: |
           set -e
@@ -29,6 +30,7 @@ jobs:
             https://gaoyifan.github.io/china-operator-ip/china6.txt \
             -o china6.txt
 
+      # 3. 检查下载结果
       - name: Check downloaded files
         run: |
           set -e
@@ -39,6 +41,13 @@ jobs:
           echo "IPv4 CIDR count: $(wc -l < china.txt)"
           echo "IPv6 CIDR count: $(wc -l < china6.txt)"
 
+          echo "IPv4 file size:"
+          ls -lh china.txt
+
+          echo "IPv6 file size:"
+          ls -lh china6.txt
+
+      # 4. 下载最新版 Mihomo
       - name: Download latest Mihomo
         run: |
           set -e
@@ -67,8 +76,7 @@ jobs:
           gunzip mihomo.gz
           chmod +x mihomo
 
-          ./mihomo version
-
+      # 5. 将 TXT 转换成 Mihomo MRS
       - name: Convert to MRS
         run: |
           set -e
@@ -76,6 +84,7 @@ jobs:
           ./mihomo convert-ruleset ipcidr text china.txt china.mrs
           ./mihomo convert-ruleset ipcidr text china6.txt china6.mrs
 
+      # 6. 检查 MRS 是否生成成功
       - name: Check MRS files
         run: |
           set -e
@@ -83,10 +92,14 @@ jobs:
           test -s china.mrs
           test -s china6.mrs
 
+          echo "Generated MRS files:"
           ls -lh china.mrs china6.mrs
 
+      # 7. 提交并推送更新
       - name: Commit changes
         run: |
+          set -e
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -100,7 +113,11 @@ jobs:
           git commit -m "Update China IP rules"
           git push
 
+      # 8. 清理临时文件
       - name: Clean temporary files
         if: always()
         run: |
-          rm -f china.txt china6.txt mihomo mihomo.gz
+          rm -f china.txt
+          rm -f china6.txt
+          rm -f mihomo
+          rm -f mihomo.gz
