@@ -2,8 +2,6 @@ name: Update China IP Rules
 
 on:
   schedule:
-    # 每天 UTC 18:00 执行
-    # 北京时间 / 日本时间都是凌晨 02:00
     - cron: "0 18 * * *"
 
   workflow_dispatch:
@@ -21,6 +19,8 @@ jobs:
 
       - name: Download China IP lists
         run: |
+          set -e
+
           curl -fL \
             https://gaoyifan.github.io/china-operator-ip/china.txt \
             -o china.txt
@@ -29,18 +29,61 @@ jobs:
             https://gaoyifan.github.io/china-operator-ip/china6.txt \
             -o china6.txt
 
-      - name: Download Mihomo
+      - name: Check downloaded files
         run: |
-          curl -fL \
-            https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-linux-amd64-v3 \
-            -o mihomo
+          set -e
 
+          test -s china.txt
+          test -s china6.txt
+
+          echo "IPv4 CIDR count: $(wc -l < china.txt)"
+          echo "IPv6 CIDR count: $(wc -l < china6.txt)"
+
+      - name: Download latest Mihomo
+        run: |
+          set -e
+
+          VERSION=$(curl -fsSL \
+            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+            | jq -r '.tag_name')
+
+          echo "Mihomo version: $VERSION"
+
+          URL=$(curl -fsSL \
+            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+            | jq -r '
+              .assets[]
+              | select(.name | test("^mihomo-linux-amd64.*\\.gz$"))
+              | .browser_download_url
+            ' \
+            | head -n 1)
+
+          echo "Download URL: $URL"
+
+          test -n "$URL"
+
+          curl -fL "$URL" -o mihomo.gz
+
+          gunzip mihomo.gz
           chmod +x mihomo
+
+          ./mihomo version
 
       - name: Convert to MRS
         run: |
+          set -e
+
           ./mihomo convert-ruleset ipcidr text china.txt china.mrs
           ./mihomo convert-ruleset ipcidr text china6.txt china6.mrs
+
+      - name: Check MRS files
+        run: |
+          set -e
+
+          test -s china.mrs
+          test -s china6.mrs
+
+          ls -lh china.mrs china6.mrs
 
       - name: Commit changes
         run: |
@@ -56,3 +99,8 @@ jobs:
 
           git commit -m "Update China IP rules"
           git push
+
+      - name: Clean temporary files
+        if: always()
+        run: |
+          rm -f china.txt china6.txt mihomo mihomo.gz
