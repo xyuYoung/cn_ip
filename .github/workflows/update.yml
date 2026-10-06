@@ -15,7 +15,7 @@ jobs:
     steps:
       # 1. 拉取仓库
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 2. 下载中国 IPv4 / IPv6 CIDR
       - name: Download China IP lists
