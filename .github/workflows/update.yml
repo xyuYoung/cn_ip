@@ -76,7 +76,7 @@ jobs:
           gunzip mihomo.gz
           chmod +x mihomo
 
-      # 5. 将 TXT 转换成 MRS
+      # 5. 将 TXT 转换成 Mihomo MRS
       - name: Convert to MRS
         run: |
           set -e
@@ -107,16 +107,21 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "Rules unchanged."
-            echo "RULES_CHANGED=false" >> "$GITHUB_ENV"
             exit 0
           fi
 
           git commit -m "Update China IP rules"
           git push
 
-          echo "RULES_CHANGED=true" >> "$GITHUB_ENV"
-
-      # 8. Telegram 通知
+      # 8. 清理临时文件
+      - name: Clean temporary files
+        if: always()
+        run: |
+          rm -f china.txt
+          rm -f china6.txt
+          rm -f mihomo
+          rm -f mihomo.gz
+      # 9. Telegram 通知
       - name: Send Telegram notification
         if: success()
         run: |
@@ -127,23 +132,13 @@ jobs:
           fi
 
           MESSAGE="$STATUS
-
-仓库：xyuYoung/cn_ip
-IPv4：china.mrs
-IPv6：china6.mrs
-时间：$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          仓库：xyuYoung/cn_ip
+          IPv4：china.mrs
+          IPv6：china6.mrs
+          时间：$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
           curl -fsS \
             -X POST \
             "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage" \
             -d chat_id="${{ secrets.TG_CHAT_ID }}" \
             --data-urlencode "text=$MESSAGE"
-
-      # 9. 清理临时文件
-      - name: Clean temporary files
-        if: always()
-        run: |
-          rm -f china.txt
-          rm -f china6.txt
-          rm -f mihomo
-          rm -f mihomo.gz
