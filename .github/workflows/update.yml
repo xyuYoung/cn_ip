@@ -49,23 +49,23 @@ jobs:
 
       # 4. 下载最新版 Mihomo
       - name: Download latest Mihomo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
-          VERSION=$(curl -fsSL \
-            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
-            | jq -r '.tag_name')
+          RELEASE_JSON=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest)
 
+          VERSION=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
           echo "Mihomo version: $VERSION"
 
-          URL=$(curl -fsSL \
-            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
-            | jq -r '
-              .assets[]
-              | select(.name | test("^mihomo-linux-amd64.*\\.gz$"))
-              | .browser_download_url
-            ' \
-            | head -n 1)
+          URL=$(echo "$RELEASE_JSON" | jq -r '
+            .assets[]
+            | select(.name | test("^mihomo-linux-amd64.*\\.gz$"))
+            | .browser_download_url
+          ' | head -n 1)
 
           echo "Download URL: $URL"
 
@@ -95,7 +95,7 @@ jobs:
           echo "Generated MRS files:"
           ls -lh china.mrs china6.mrs
 
-      # 7. 提交并推送更新
+      # 7. 提交并推送更新（使用 --allow-empty 强制提交，不检查是否有变化）
       - name: Commit changes
         run: |
           set -e
@@ -105,7 +105,7 @@ jobs:
 
           git add china.mrs china6.mrs
           
-          git commit -m "Update China IP rules"
+          git commit --allow-empty -m "Update China IP rules"
           git push
 
       # 8. 清理临时文件
@@ -116,18 +116,13 @@ jobs:
           rm -f china6.txt
           rm -f mihomo
           rm -f mihomo.gz
+
       # 9. Telegram 通知
       - name: Send Telegram notification
         if: success()
         run: |
-          if [ "$RULES_CHANGED" = "true" ]; then
-            STATUS="🇨🇳 中国 IP 规则更新成功"
-          else
-            STATUS="🇨🇳 中国 IP 规则检查完成，无变化"
-          fi
-
-          MESSAGE="$STATUS
-          仓库：xyuYoung/cn_ip
+          MESSAGE="🇨🇳 中国 IP 规则更新成功
+          仓库：${{ github.repository }}
           IPv4：china.mrs
           IPv6：china6.mrs
           时间：$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
